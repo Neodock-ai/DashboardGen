@@ -975,8 +975,8 @@ def render_visualization(df, viz_config, container):
                     container.plotly_chart(fig, use_container_width=True)
             else:
                 container.warning(f"Cannot create line chart for {x_column} vs {y_column}. Columns may be missing or contain insufficient valid data.")
-
-elif viz_type == "scatter_plot":
+        
+        elif viz_type == "scatter_plot":
             x_column = viz_config["x_column"]
             y_column = viz_config["y_column"]
             
@@ -1025,7 +1025,7 @@ elif viz_type == "scatter_plot":
                     container.plotly_chart(fig, use_container_width=True)
             else:
                 container.warning(f"Cannot create scatter plot for {x_column} vs {y_column}. Columns may be missing or contain insufficient valid data.")
-            
+                
         elif viz_type == "grouped_box_plot":
             category_column = viz_config["category_column"]
             numeric_column = viz_config["numeric_column"]
