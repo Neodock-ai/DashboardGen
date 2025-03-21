@@ -1064,8 +1064,8 @@ if __name__ == "__main__":
             table_data[table_name] = table_df
         
         # Close the connection and remove the temporary file
-        conn.close()
-        os.unlink(tmp_path)
+    conn.close()
+    os.unlink(tmp_path)
         
         # If there's only one table, return it directly
         if len(table_data) == 1:
