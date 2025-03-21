@@ -1135,5 +1135,5 @@ def generate_dashboard(df, data_overview, selected_visualizations, filters, ai_i
                                     default=all_values,
                                     key=f"multi_{column}"
                                 )
-                            else:
-                                selected_values = st.multiimport streamlit as st
+        else:
+            selected_values = st.multiimport streamlit as st
