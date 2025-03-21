@@ -1068,7 +1068,7 @@ if __name__ == "__main__":
     os.unlink(tmp_path)
         
         # If there's only one table, return it directly
-        if len(table_data) == 1:
+    if len(table_data) == 1:
             df = list(table_data.values())[0]
         else:
             # Otherwise, let the user select a table
