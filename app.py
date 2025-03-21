@@ -1,3 +1,4 @@
+import streamlit as st
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
@@ -265,6 +266,51 @@ def read_data_file(uploaded_file):
     except Exception as e:
         st.error(f"Error reading the file: {str(e)}")
         return None
+
+def guess_data_domain(df):
+    """Guess the domain of the data based on column names and content"""
+    # Convert column names to strings before lowercasing to handle non-string column names
+    column_names = [str(col).lower() for col in df.columns]
+    column_name_str = ' '.join(column_names)
+    
+    # Real estate data
+    real_estate_terms = ['property', 'rent', 'lease', 'building', 'unit', 'bedroom', 'apartment', 
+                         'sqft', 'square foot', 'vacancy', 'occupancy', 'tenant']
+    if any(term in column_name_str for term in real_estate_terms):
+        return "real estate"
+    
+    # Sales/E-commerce data
+    sales_terms = ['sales', 'revenue', 'product', 'customer', 'order', 'price', 'discount', 'quantity']
+    if any(term in column_name_str for term in sales_terms):
+        return "sales/e-commerce"
+    
+    # Financial data
+    finance_terms = ['profit', 'loss', 'expense', 'income', 'budget', 'cost', 'transaction', 'account', 'balance']
+    if any(term in column_name_str for term in finance_terms):
+        return "financial"
+    
+    # Healthcare data
+    health_terms = ['patient', 'diagnosis', 'treatment', 'doctor', 'hospital', 'medical', 'disease', 'health']
+    if any(term in column_name_str for term in health_terms):
+        return "healthcare"
+    
+    # HR/Employee data
+    hr_terms = ['employee', 'salary', 'department', 'hire', 'position', 'hr', 'performance', 'rating']
+    if any(term in column_name_str for term in hr_terms):
+        return "human resources"
+    
+    # Marketing data
+    marketing_terms = ['campaign', 'click', 'conversion', 'ad', 'marketing', 'channel', 'lead', 'engagement']
+    if any(term in column_name_str for term in marketing_terms):
+        return "marketing"
+    
+    # Education data
+    education_terms = ['student', 'course', 'grade', 'teacher', 'school', 'class', 'education', 'score', 'test']
+    if any(term in column_name_str for term in education_terms):
+        return "education"
+    
+    # Default
+    return "general business"
 
 def analyze_data(df):
     """Analyze the data and return insights"""
@@ -581,51 +627,6 @@ def analyze_data(df):
     
     return analysis
 
-def guess_data_domain(df):
-    """Guess the domain of the data based on column names and content"""
-    # Convert column names to strings before lowercasing to handle non-string column names
-    column_names = [str(col).lower() for col in df.columns]
-    column_name_str = ' '.join(column_names)
-    
-    # Real estate data
-    real_estate_terms = ['property', 'rent', 'lease', 'building', 'unit', 'bedroom', 'apartment', 
-                         'sqft', 'square foot', 'vacancy', 'occupancy', 'tenant']
-    if any(term in column_name_str for term in real_estate_terms):
-        return "real estate"
-    
-    # Sales/E-commerce data
-    sales_terms = ['sales', 'revenue', 'product', 'customer', 'order', 'price', 'discount', 'quantity']
-    if any(term in column_name_str for term in sales_terms):
-        return "sales/e-commerce"
-    
-    # Financial data
-    finance_terms = ['profit', 'loss', 'expense', 'income', 'budget', 'cost', 'transaction', 'account', 'balance']
-    if any(term in column_name_str for term in finance_terms):
-        return "financial"
-    
-    # Healthcare data
-    health_terms = ['patient', 'diagnosis', 'treatment', 'doctor', 'hospital', 'medical', 'disease', 'health']
-    if any(term in column_name_str for term in health_terms):
-        return "healthcare"
-    
-    # HR/Employee data
-    hr_terms = ['employee', 'salary', 'department', 'hire', 'position', 'hr', 'performance', 'rating']
-    if any(term in column_name_str for term in hr_terms):
-        return "human resources"
-    
-    # Marketing data
-    marketing_terms = ['campaign', 'click', 'conversion', 'ad', 'marketing', 'channel', 'lead', 'engagement']
-    if any(term in column_name_str for term in marketing_terms):
-        return "marketing"
-    
-    # Education data
-    education_terms = ['student', 'course', 'grade', 'teacher', 'school', 'class', 'education', 'score', 'test']
-    if any(term in column_name_str for term in education_terms):
-        return "education"
-    
-    # Default
-    return "general business"
-
 def analyze_data_with_openai(df, api_key, model="gpt-3.5-turbo"):
     """Use OpenAI API to analyze the data and provide insights"""
     # Prepare data summary for API
@@ -710,8 +711,7 @@ Please respond in JSON format with the following structure:
                 },
                 {
                     "role": "user",
-                    "content": prompt
-                }
+                    "content": prompt}
             ],
             "temperature": 0.2
         }
@@ -850,6 +850,328 @@ Please respond in JSON format with the following structure:
     except Exception as e:
         st.error(f"Error calling OpenAI API: {str(e)}")
         return None
+
+def render_visualization(df, viz_config, container):
+    """Render a visualization based on the configuration"""
+    viz_type = viz_config["type"]
+    title = viz_config.get("title", "")
+    
+    try:
+        if viz_type == "histogram":
+            column = viz_config["column"]
+            
+            # Check if column exists and has valid data
+            if column in df.columns and df[column].count() > 0:
+                fig = px.histogram(df, x=column, title=title)
+                container.plotly_chart(fig, use_container_width=True)
+                
+                # Add descriptive statistics
+                stats = df[column].describe()
+                container.markdown(f"""
+                **Key statistics:**
+                - Mean: {stats['mean']:.2f}
+                - Median: {stats['50%']:.2f}
+                - Standard Deviation: {stats['std']:.2f}
+                - Min: {stats['min']:.2f}
+                - Max: {stats['max']:.2f}
+                """)
+            else:
+                container.warning(f"Cannot create histogram for {column}. Column may be missing or contain no valid data.")
+        
+        elif viz_type == "box_plot":
+            column = viz_config["column"]
+            
+            # Check if column exists and has valid data
+            if column in df.columns and df[column].count() > 0:
+                fig = px.box(df, y=column, title=title)
+                container.plotly_chart(fig, use_container_width=True)
+            else:
+                container.warning(f"Cannot create box plot for {column}. Column may be missing or contain no valid data.")
+            
+        elif viz_type == "bar_chart":
+            column = viz_config["column"]
+            
+            # Check if column exists and has valid data
+            if column in df.columns and df[column].count() > 0:
+                value_counts = df[column].value_counts().reset_index()
+                value_counts.columns = [column, 'count']
+                
+                # Sort by count descending and take top 20 if there are more
+                value_counts = value_counts.sort_values('count', ascending=False).head(20)
+                
+                if not value_counts.empty:
+                    fig = px.bar(value_counts, x=column, y='count', title=title)
+                    container.plotly_chart(fig, use_container_width=True)
+                    
+                    # Add insights
+                    top_category = value_counts.iloc[0][column] if len(value_counts) > 0 else "N/A"
+                    top_percentage = (value_counts.iloc[0]['count'] / df.shape[0]) * 100 if len(value_counts) > 0 else 0
+                    container.markdown(f"""
+                    **Insights:**
+                    - Most frequent category: {top_category} ({top_percentage:.1f}% of data)
+                    - Number of unique categories: {df[column].nunique()}
+                    """)
+                else:
+                    container.warning(f"Not enough data to create bar chart for {column}.")
+            else:
+                container.warning(f"Cannot create bar chart for {column}. Column may be missing or contain no valid data.")
+            
+        elif viz_type == "line_chart":
+            x_column = viz_config["x_column"]
+            y_column = viz_config["y_column"]
+            
+            # Check if columns exist and have valid data
+            if x_column in df.columns and y_column in df.columns and df[[x_column, y_column]].dropna().shape[0] > 1:
+                # Try to convert x_column to datetime if it's not already
+                if df[x_column].dtype != 'datetime64[ns]':
+                    try:
+                        df[x_column] = pd.to_datetime(df[x_column])
+                    except:
+                        pass
+                
+                # Special handling for datetime x-axis
+                if pd.api.types.is_datetime64_dtype(df[x_column]):
+                    # Resample by day, week, month, or year depending on the date range
+                    try:
+                        date_range = (df[x_column].max() - df[x_column].min()).days
+                        
+                        if date_range > 365 * 3:  # More than 3 years
+                            time_group = 'M'
+                            time_format = '%Y-%m'
+                        elif date_range > 365:  # More than 1 year
+                            time_group = 'W'
+                            time_format = '%Y-%W'
+                        else:
+                            time_group = 'D'
+                            time_format = '%Y-%m-%d'
+                        
+                        # Group by time period and calculate mean
+                        df_grouped = df.groupby(df[x_column].dt.strftime(time_format)).agg({y_column: 'mean'}).reset_index()
+                        
+                        fig = px.line(df_grouped, x=x_column, y=y_column, title=title)
+                        container.plotly_chart(fig, use_container_width=True)
+                        
+                        # Add trend analysis
+                        if len(df_grouped) > 2:
+                            try:
+                                first_value = df_grouped[y_column].iloc[0]
+                                last_value = df_grouped[y_column].iloc[-1]
+                                pct_change = ((last_value - first_value) / first_value) * 100 if first_value != 0 else 0
+                                
+                                trend = "increasing" if pct_change > 0 else "decreasing"
+                                container.markdown(f"""
+                                **Trend Analysis:**
+                                - Overall trend: {trend}
+                                - Change from start to end: {pct_change:.1f}%
+                                - Average value: {df_grouped[y_column].mean():.2f}
+                                """)
+                            except:
+                                pass
+                    except Exception as e:
+                        container.error(f"Error creating time series: {str(e)}")
+                else:
+                    # Regular line plot for non-datetime x-axis
+                    fig = px.line(df, x=x_column, y=y_column, title=title)
+                    container.plotly_chart(fig, use_container_width=True)
+            else:
+                container.warning(f"Cannot create line chart for {x_column} vs {y_column}. Columns may be missing or contain insufficient valid data.")
+
+elif viz_type == "scatter_plot":
+            x_column = viz_config["x_column"]
+            y_column = viz_config["y_column"]
+            
+            # Check if columns exist and have valid data
+            if x_column in df.columns and y_column in df.columns and df[[x_column, y_column]].dropna().shape[0] > 1:
+                fig = px.scatter(df, x=x_column, y=y_column, title=title)
+                
+                # Add trendline if there's enough data
+                if df[[x_column, y_column]].dropna().shape[0] > 2:
+                    try:
+                        # Add trendline
+                        fig.update_layout(
+                            shapes=[
+                                dict(
+                                    type='line',
+                                    xref='x',
+                                    yref='y',
+                                    x0=df[x_column].min(),
+                                    y0=df[y_column].min(),
+                                    x1=df[x_column].max(),
+                                    y1=df[y_column].max(),
+                                    line=dict(
+                                        color="red",
+                                        width=2,
+                                        dash="dot",
+                                    )
+                                )
+                            ]
+                        )
+                        
+                        # Calculate correlation
+                        correlation = df[[x_column, y_column]].corr().iloc[0, 1]
+                        correlation_strength = "strong" if abs(correlation) > 0.7 else "moderate" if abs(correlation) > 0.4 else "weak"
+                        correlation_direction = "positive" if correlation > 0 else "negative"
+                        
+                        container.plotly_chart(fig, use_container_width=True)
+                        container.markdown(f"""
+                        **Correlation Analysis:**
+                        - Correlation coefficient: {correlation:.3f}
+                        - This indicates a {correlation_strength} {correlation_direction} relationship
+                        """)
+                    except:
+                        # Simpler display if correlation calculation fails
+                        container.plotly_chart(fig, use_container_width=True)
+                else:
+                    container.plotly_chart(fig, use_container_width=True)
+            else:
+                container.warning(f"Cannot create scatter plot for {x_column} vs {y_column}. Columns may be missing or contain insufficient valid data.")
+            
+        elif viz_type == "grouped_box_plot":
+            category_column = viz_config["category_column"]
+            numeric_column = viz_config["numeric_column"]
+            
+            # Check if columns exist and have valid data
+            if (category_column in df.columns and numeric_column in df.columns and 
+                df[category_column].nunique() > 0 and df[numeric_column].count() > 0):
+                
+                # Check if dataframe is not empty
+                if df.shape[0] > 0 and df[category_column].nunique() > 0:
+                    # Limit to top 10 categories if there are more
+                    if df[category_column].nunique() > 10:
+                        top_categories = df[category_column].value_counts().nlargest(10).index.tolist()
+                        filtered_df = df[df[category_column].isin(top_categories)]
+                    else:
+                        filtered_df = df
+                    
+                    if filtered_df.shape[0] > 0:  # Make sure we still have data after filtering
+                        fig = px.box(filtered_df, x=category_column, y=numeric_column, title=title)
+                        container.plotly_chart(fig, use_container_width=True)
+                        
+                        # Calculate and display statistics by group
+                        stats_by_group = df.groupby(category_column)[numeric_column].agg(['mean', 'median', 'std']).sort_values('mean', ascending=False)
+                        
+                        if not stats_by_group.empty:
+                            # Format the stats table
+                            stats_table = pd.DataFrame({
+                                'Category': stats_by_group.index,
+                                'Mean': stats_by_group['mean'].round(2),
+                                'Median': stats_by_group['median'].round(2),
+                                'Std Dev': stats_by_group['std'].round(2)
+                            }).reset_index(drop=True)
+                            
+                            container.markdown("**Statistics by Category:**")
+                            container.dataframe(stats_table)
+                        else:
+                            container.warning("Not enough data to calculate statistics by group.")
+                    else:
+                        container.warning("Not enough data after filtering categories.")
+                else:
+                    container.warning("Not enough data to create grouped box plot.")
+            else:
+                container.warning(f"Cannot create grouped box plot for {category_column} and {numeric_column}. Columns may be missing or contain insufficient valid data.")
+            
+        elif viz_type == "correlation_heatmap":
+            columns = viz_config["columns"]
+            
+            # Filter out columns that don't exist in the dataframe
+            valid_columns = [col for col in columns if col in df.columns]
+            
+            # Check if we have at least 2 valid columns
+            if len(valid_columns) >= 2:
+                # Limit to a reasonable number of columns
+                if len(valid_columns) > 15:
+                    valid_columns = valid_columns[:15]
+                
+                # Drop rows with any NaNs in the selected columns
+                numeric_df = df[valid_columns].dropna()
+                
+                if numeric_df.shape[0] > 5:  # Ensure we have enough data
+                    # Calculate correlation matrix
+                    try:
+                        corr_matrix = numeric_df.corr().round(2)
+                        
+                        # Create heatmap
+                        fig = px.imshow(
+                            corr_matrix,
+                            x=corr_matrix.columns,
+                            y=corr_matrix.columns,
+                            color_continuous_scale='RdBu_r',
+                            zmin=-1, zmax=1,
+                            title=title
+                        )
+                        
+                        container.plotly_chart(fig, use_container_width=True)
+                        
+                        # Identify strongest correlations
+                        corr_pairs = []
+                        for i, col1 in enumerate(corr_matrix.columns):
+                            for j, col2 in enumerate(corr_matrix.columns):
+                                if i < j:  # Only consider upper triangle of correlation matrix
+                                    corr_pairs.append((col1, col2, corr_matrix.loc[col1, col2]))
+                        
+                        # Sort by absolute correlation and get top 5
+                        top_corrs = sorted(corr_pairs, key=lambda x: abs(x[2]), reverse=True)[:5]
+                        
+                        if top_corrs:
+                            container.markdown("**Strongest Correlations:**")
+                            for col1, col2, corr in top_corrs:
+                                direction = "positive" if corr > 0 else "negative"
+                                strength = "strong" if abs(corr) > 0.7 else "moderate" if abs(corr) > 0.4 else "weak"
+                                container.markdown(f"- {col1} and {col2}: {corr:.2f} ({strength} {direction})")
+                        else:
+                            container.info("No strong correlations found between variables.")
+                    except Exception as e:
+                        container.error(f"Error creating correlation heatmap: {str(e)}")
+                else:
+                    container.warning("Not enough complete data rows to create a correlation heatmap.")
+            else:
+                container.warning("Not enough numeric columns available for correlation heatmap.")
+        
+        elif viz_type == "pie_chart":
+            column = viz_config["column"]
+            
+            # Check if column exists and has valid data
+            if column in df.columns and df[column].count() > 0:
+                # Get value counts and limit to top 10 categories + "Other"
+                value_counts = df[column].value_counts()
+                
+                if len(value_counts) > 0:
+                    if len(value_counts) > 10:
+                        top_values = value_counts.nlargest(10)
+                        other_value = pd.Series([value_counts.iloc[10:].sum()], index=["Other"])
+                        pie_data = pd.concat([top_values, other_value])
+                    else:
+                        pie_data = value_counts
+                    
+                    fig = px.pie(
+                        values=pie_data.values,
+                        names=pie_data.index,
+                        title=title
+                    )
+                    
+                    container.plotly_chart(fig, use_container_width=True)
+                    
+                    # Add insights
+                    if not pie_data.empty:
+                        top_category = pie_data.index[0] if len(pie_data) > 0 else "N/A"
+                        top_percentage = (pie_data.iloc[0] / pie_data.sum()) * 100 if len(pie_data) > 0 else 0
+                        container.markdown(f"""
+                        **Insights:**
+                        - Largest category: {top_category} ({top_percentage:.1f}% of total)
+                        - Number of categories: {df[column].nunique()}
+                        """)
+                    else:
+                        container.markdown("**Insights:** No data available for this category.")
+                else:
+                    container.warning("No data available to create pie chart.")
+            else:
+                container.warning(f"Cannot create pie chart for {column}. Column may be missing or contain no valid data.")
+    
+    except Exception as e:
+        container.error(f"Error rendering visualization: {str(e)}")
+        return False
+    
+    return True
 
 def apply_filters(df, filters):
     """Apply selected filters to the dataframe"""
@@ -1001,6 +1323,13 @@ def generate_dashboard(df, data_overview, selected_visualizations, filters, ai_i
                                 selected_values = st.multiselect(
                                     f"Values",
                                     options=all_values,
+                                    default=all_values,
+                                    key=f"multi_{column}"
+                                )
+                            else:
+                                selected_values = st.multiselect(
+                                    f"Values",
+                                    options=all_values,
                                     key=f"multi_{column}"
                                 )
                             
@@ -1129,11 +1458,185 @@ def generate_dashboard(df, data_overview, selected_visualizations, filters, ai_i
                     if not success:
                         st.error("Failed to render visualization.")
     
-    return Trueselect(
-                                    f"Values",
-                                    options=all_values,
-                                    default=all_values,
-                                    key=f"multi_{column}"
+    return True
+
+def main():
+    st.title("🧠 AI-Enhanced Data Analyzer & Dashboard Generator")
+    st.write("Upload your data file and let AI analyze it and create a custom dashboard for you.")
+    
+    with st.sidebar:
+        st.image("https://img.icons8.com/pulsar-color/96/data-configuration.png", width=80)
+        st.header("Data Analysis Options")
+        
+        # AI integration options
+        st.subheader("AI Analysis Settings")
+        analysis_option = st.radio(
+            "Choose analysis method:",
+            ["Standard Analysis", "AI-Enhanced Analysis (OpenAI)"],
+            key="analysis_option"
+        )
+        
+        st.session_state.using_openai = (analysis_option == "AI-Enhanced Analysis (OpenAI)")
+        st.session_state.using_local_analysis = (analysis_option == "Standard Analysis")
+        
+        if st.session_state.using_openai:
+            # Model selection
+            st.session_state.ai_model = st.selectbox(
+                "Select AI model:",
+                ["gpt-3.5-turbo", "gpt-4o", "gpt-4", "gpt-4-turbo"],
+                index=0,
+                key="ai_model_select"
+            )
+            
+            # API key input
+            api_key = st.text_input(
+                "Enter your OpenAI API key:",
+                type="password",
+                key="api_key_input"
+            )
+            
+            if api_key:
+                st.session_state.api_key = api_key
+            
+            if not st.session_state.api_key:
+                st.warning("You need to provide an OpenAI API key for AI-enhanced analysis.")
+        
+        uploaded_file = st.file_uploader("Upload your data file", type=['csv', 'xlsx', 'xls', 'json', 'txt', 'db', 'sqlite'])
+        
+        if uploaded_file is not None:
+            analyze_button_disabled = (st.session_state.using_openai and not st.session_state.api_key)
+            
+            if st.button("Analyze Data", type="primary", disabled=analyze_button_disabled):
+                with st.spinner("Reading and analyzing data..."):
+                    # Reset session state
+                    st.session_state.analysis_complete = False
+                    st.session_state.dashboard_generated = False
+                    st.session_state.ai_insights = None
+                    
+                    # Read the data file
+                    df = read_data_file(uploaded_file)
+                    
+                    if df is not None and not df.empty:
+                        # Store the data
+                        st.session_state.data = df
+                        
+                        # Analyze the data
+                        if st.session_state.using_openai and st.session_state.api_key:
+                            with st.spinner("AI analyzing your data... This may take a minute..."):
+                                # Use OpenAI for enhanced analysis
+                                ai_results = analyze_data_with_openai(
+                                    df, 
+                                    st.session_state.api_key,
+                                    st.session_state.ai_model
                                 )
-        else:
-            selected_values = st.multiimport streamlit as st
+                                
+                                if ai_results:
+                                    st.session_state.ai_insights = ai_results.get("ai_insights")
+                                    st.session_state.recommended_visualizations = ai_results.get("recommended_visualizations", [])
+                                    st.session_state.filters = ai_results.get("recommended_filters", [])
+                                    st.session_state.data_description = ai_results.get("data_description", "")
+                                    
+                                    # Still run local analysis for column type detection
+                                    st.session_state.data_overview = analyze_data(df)
+                                    
+                                    # Mark analysis as complete
+                                    st.session_state.analysis_complete = True
+                                    
+                                    # Store a copy of the data (for filters)
+                                    st.session_state.processed_data = df.copy()
+                                else:
+                                    st.error("AI analysis failed. Try standard analysis instead.")
+                        else:
+                            # Use local algorithm for analysis
+                            st.session_state.data_overview = analyze_data(df)
+                            
+                            if st.session_state.data_overview:
+                                # Get recommended visualizations
+                                st.session_state.recommended_visualizations = st.session_state.data_overview.get("recommended_visualizations", [])
+                                
+                                # Get recommended filters
+                                st.session_state.filters = st.session_state.data_overview.get("recommended_filters", [])
+                                
+                                # Set data description
+                                st.session_state.data_description = st.session_state.data_overview.get("data_description", "")
+                                
+                                # Mark analysis as complete
+                                st.session_state.analysis_complete = True
+                                
+                                # Store a copy of the data (for filters)
+                                st.session_state.processed_data = df.copy()
+                        
+                        # Rerun the app to update the UI
+                        st.rerun()
+                    else:
+                        st.error("Failed to read or analyze the data. Please check the file format.")
+        
+        if st.session_state.analysis_complete:
+            st.success("Analysis complete!")
+            
+            # Show data description
+            st.subheader("Data Overview")
+            if st.session_state.ai_insights:
+                st.write(st.session_state.ai_insights.get("description", ""))
+            else:
+                st.write(st.session_state.data_description)
+            
+            # Select visualizations
+            st.subheader("Select Visualizations")
+            
+            st.session_state.selected_viz_indices = []
+            for i, viz in enumerate(st.session_state.recommended_visualizations):
+                selected = st.checkbox(viz["title"], value=True, key=f"viz_{i}")
+                if selected:
+                    st.session_state.selected_viz_indices.append(i)
+            
+            selected_visualizations = [st.session_state.recommended_visualizations[i] for i in st.session_state.selected_viz_indices]
+            
+            # Generate dashboard button
+            if st.button("Generate Dashboard", type="primary"):
+                st.session_state.dashboard_generated = True
+                st.rerun()
+    
+    # Display dashboard content in the main area
+    if st.session_state.dashboard_generated and st.session_state.data is not None:
+        generate_dashboard(
+            st.session_state.processed_data,
+            st.session_state.data_overview,
+            [st.session_state.recommended_visualizations[i] for i in st.session_state.selected_viz_indices],
+            st.session_state.filters,
+            st.session_state.ai_insights
+        )
+    else:
+        # Display instructions/welcome message
+        st.markdown("""
+        ## 👋 Welcome to AI-Enhanced Data Analyzer & Dashboard Generator!
+        
+        This application helps you instantly analyze your data and create beautiful dashboards with just a few clicks, now enhanced with AI capabilities.
+        
+        ### How It Works:
+        1. **Choose Analysis Method:** Select between standard analysis or AI-enhanced analysis
+        2. **Upload your data file** (CSV, Excel, SQLite, etc.)
+        3. **Click "Analyze Data"** to examine your dataset
+        4. **Select visualizations** you'd like to include
+        5. **Generate your dashboard** with a single click
+        
+        ### Features:
+        - **AI-Enhanced Analysis:** Gain deeper insights about your data with AI assistance
+        - **Automatic data analysis** with smart visualization recommendations
+        - **Interactive filters** to explore your data
+        - **Intelligent data detection** to handle various file formats
+        - **Key metrics and trends detection**
+        - **Easy-to-understand explanations** of findings
+        
+        ### AI-Enhanced Features:
+        - Smarter detection of data patterns and relationships
+        - More accurate visualization recommendations
+        - Domain-specific insights based on your data
+        - Improved data quality assessment
+        - Context-aware data interpretation
+        
+        Upload your file in the sidebar to get started!
+        """)
+
+if __name__ == "__main__":
+    main()
