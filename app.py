@@ -506,13 +506,17 @@ def analyze_data(df):
     description += f"It appears to be {data_type} data. "
     
     if time_dimension:
-        description += f"The data has a time dimension ({time_dimension}). "
+        description += f"The data has a time dimension ({str(time_dimension)}). "
     
     if key_metrics:
-        description += f"Key metrics include {', '.join(key_metrics)}. "
+        # Ensure all metric names are converted to strings
+        metric_names = [str(metric) for metric in key_metrics]
+        description += f"Key metrics include {', '.join(metric_names)}. "
     
     if categories:
-        description += f"Main categories include {', '.join(categories)}. "
+        # Ensure all category names are converted to strings
+        category_names = [str(cat) for cat in categories]
+        description += f"Main categories include {', '.join(category_names)}. "
     
     # Add data overview
     analysis["data_description"] = description
