@@ -591,7 +591,7 @@ def render_visualization(df, viz_config, container):
 def apply_filters(df, filters):
     """Apply selected filters to the dataframe"""
     if not filters:
-        return df
+        return df, []
     
     filtered_df = df.copy()
     filter_description = []
@@ -658,7 +658,7 @@ def generate_dashboard(df, data_overview, selected_visualizations, filters):
                 updated_filter = filter_config.copy()
                 
                 if filter_type == "date_range":
-                   try:
+                    try:
                         min_date = df[column].min()
                         max_date = df[column].max()
                         
@@ -669,22 +669,7 @@ def generate_dashboard(df, data_overview, selected_visualizations, filters):
                             max_value=max_date,
                             key=f"start_{column}"
                         )
-                        
-                        end_date = st.date_input(
-                            f"End date",
-                            value=max_date,
-                            min_value=min_date,
-                            max_value=max_date,
-                            key=f"end_{column}"
-                        )
-                        
-                        updated_filter["start_date"] = pd.Timestamp(start_date)
-                        updated_filter["end_date"] = pd.Timestamp(end_date)
-                        updated_filter["selected"] = True
-                except Exception as e:
-                        st.error(f"Error with date filter for {column}: {str(e)}")
-                        updated_filter["selected"] = False
-                        
+    
     # Display visualizations in a grid
     st.subheader("Visualizations")
     
@@ -817,8 +802,8 @@ if __name__ == "__main__":
                         updated_filter["start_date"] = pd.Timestamp(start_date)
                         updated_filter["end_date"] = pd.Timestamp(end_date)
                         updated_filter["selected"] = True
-                    except:
-                        st.error(f"Error with date filter for {column}")
+                    except Exception as e:
+                        st.error(f"Error with date filter for {column}: {str(e)}")
                         updated_filter["selected"] = False
                 
                 elif filter_type == "categorical":
@@ -842,8 +827,8 @@ if __name__ == "__main__":
                         
                         updated_filter["selected_values"] = selected_values
                         updated_filter["selected"] = len(selected_values) > 0
-                    except:
-                        st.error(f"Error with categorical filter for {column}")
+                    except Exception as e:
+                        st.error(f"Error with categorical filter for {column}: {str(e)}")
                         updated_filter["selected"] = False
                 
                 elif filter_type == "numeric_range":
@@ -862,8 +847,8 @@ if __name__ == "__main__":
                         updated_filter["min_value"] = min_value
                         updated_filter["max_value"] = max_value
                         updated_filter["selected"] = min_value > min_val or max_value < max_val
-                    except:
-                        st.error(f"Error with numeric filter for {column}")
+                    except Exception as e:
+                        st.error(f"Error with numeric filter for {column}: {str(e)}")
                         updated_filter["selected"] = False
             
             updated_filters.append(updated_filter)
