@@ -581,342 +581,7 @@ def render_visualization(df, viz_config, container):
             - Min: {stats['min']:.2f}
             - Max: {stats['max']:.2f}
             """)
-    
-    except Exception as e:
-        container.error(f"Error rendering visualization: {str(e)}")
-        return False
-    
-    return True
-
-def apply_filters(df, filters):
-    """Apply selected filters to the dataframe"""
-    if not filters:
-        return df, []
-    
-    filtered_df = df.copy()
-    filter_description = []
-    
-    for filter_config in filters:
-        filter_type = filter_config["type"]
         
-        if filter_type == "date_range" and filter_config.get("selected", False):
-            column = filter_config["column"]
-            start_date = filter_config.get("start_date")
-            end_date = filter_config.get("end_date")
-            
-            if start_date and end_date:
-                filtered_df = filtered_df[(filtered_df[column] >= start_date) & (filtered_df[column] <= end_date)]
-                filter_description.append(f"{column} between {start_date.strftime('%Y-%m-%d')} and {end_date.strftime('%Y-%m-%d')}")
-        
-        elif filter_type == "categorical" and filter_config.get("selected", False):
-            column = filter_config["column"]
-            selected_values = filter_config.get("selected_values", [])
-            
-            if selected_values:
-                filtered_df = filtered_df[filtered_df[column].isin(selected_values)]
-                filter_description.append(f"{column} is {', '.join(map(str, selected_values))}")
-        
-        elif filter_type == "numeric_range" and filter_config.get("selected", False):
-            column = filter_config["column"]
-            min_value = filter_config.get("min_value")
-            max_value = filter_config.get("max_value")
-            
-            if min_value is not None and max_value is not None:
-                filtered_df = filtered_df[(filtered_df[column] >= min_value) & (filtered_df[column] <= max_value)]
-                filter_description.append(f"{column} between {min_value} and {max_value}")
-    
-    return filtered_df, filter_description
-
-def generate_dashboard(df, data_overview, selected_visualizations, filters):
-    """Generate a dashboard with the selected visualizations and filters"""
-    st.title("📊 AI-Generated Dashboard")
-    
-    # Display data information
-    with st.expander("About this dataset", expanded=False):
-        st.markdown(f"**File name:** {st.session_state.file_name}")
-        st.markdown(f"**Rows:** {df.shape[0]}, **Columns:** {df.shape[1]}")
-        st.markdown(f"**Data Description:** {data_overview['data_description']}")
-        
-        st.subheader("Sample Data")
-        st.dataframe(df.head(5))
-    
-    # Apply filters
-    filter_container = st.container()
-    with filter_container:
-        st.subheader("Filters")
-        
-        filter_cols = st.columns(min(4, len(filters)))
-        updated_filters = []
-        
-        for i, filter_config in enumerate(filters):
-            filter_type = filter_config["type"]
-            column = filter_config["column"]
-            col_idx = i % len(filter_cols)
-            
-            with filter_cols[col_idx]:
-                st.markdown(f"**{filter_config['title']}**")
-                updated_filter = filter_config.copy()
-                
-                # In the generate_dashboard function, where the date range filter handling is:
-
-                if filter_type == "date_range":
-                    try:
-                        min_date = df[column].min()
-                        max_date = df[column].max()
-                        
-                        start_date = st.date_input(
-                            f"Start date",
-                            value=min_date,
-                            min_value=min_date,
-                            max_value=max_date,
-                            key=f"start_{column}"
-                        )
-                        
-                        end_date = st.date_input(
-                            f"End date",
-                            value=max_date,
-                            min_value=min_date,
-                            max_value=max_date,
-                            key=f"end_{column}"
-                        )
-                        
-                        updated_filter["start_date"] = pd.Timestamp(start_date)
-                        updated_filter["end_date"] = pd.Timestamp(end_date)
-                        updated_filter["selected"] = True
-                    except Exception as e:
-                        st.error(f"Error with date filter for {column}: {str(e)}")
-                        updated_filter["selected"] = False
-    
-    # Display visualizations in a grid
-    st.subheader("Visualizations")
-    
-    num_cols = 2  # Number of columns in the grid
-    viz_rows = [selected_visualizations[i:i+num_cols] for i in range(0, len(selected_visualizations), num_cols)]
-    
-    for row in viz_rows:
-        cols = st.columns(num_cols)
-        
-        for i, viz in enumerate(row):
-            with cols[i]:
-                st.markdown(f"**{viz['title']}**")
-                render_visualization(filtered_df, viz, cols[i])
-    
-    return True
-
-def main():
-    st.title("🧠 AI Data Analyzer & Dashboard Generator")
-    st.write("Upload your data file and let AI analyze it and create a custom dashboard for you.")
-    
-    with st.sidebar:
-        st.image("https://img.icons8.com/pulsar-color/96/data-configuration.png", width=80)
-        st.header("Data Analysis Options")
-        
-        uploaded_file = st.file_uploader("Upload your data file", type=['csv', 'xlsx', 'xls', 'json', 'txt', 'db', 'sqlite'])
-        
-        if uploaded_file is not None:
-            if st.button("Analyze Data", type="primary"):
-                with st.spinner("Reading and analyzing data..."):
-                    # Reset session state
-                    st.session_state.analysis_complete = False
-                    st.session_state.dashboard_generated = False
-                    
-                    # Read the data file
-                    df = read_data_file(uploaded_file)
-                    
-                    if df is not None and not df.empty:
-                        # Store the data
-                        st.session_state.data = df
-                        
-                        # Analyze the data
-                        st.session_state.data_overview = analyze_data(df)
-                        
-                        if st.session_state.data_overview:
-                            # Get recommended visualizations
-                            st.session_state.recommended_visualizations = st.session_state.data_overview.get("recommended_visualizations", [])
-                            
-                            # Get recommended filters
-                            st.session_state.filters = st.session_state.data_overview.get("recommended_filters", [])
-                            
-                            # Set data description
-                            st.session_state.data_description = st.session_state.data_overview.get("data_description", "")
-                            
-                            # Mark analysis as complete
-                            st.session_state.analysis_complete = True
-                            
-                            # Store a copy of the data (for filters)
-                            st.session_state.processed_data = df.copy()
-                            
-                            # Rerun the app to update the UI
-                            st.rerun()
-                    else:
-                        st.error("Failed to read or analyze the data. Please check the file format.")
-        
-        if st.session_state.analysis_complete:
-            st.success("Analysis complete!")
-            
-            # Show data description
-            st.subheader("Data Overview")
-            st.write(st.session_state.data_description)
-            
-            # Select visualizations
-            st.subheader("Select Visualizations")
-            
-            selected_viz_indices = []
-            for i, viz in enumerate(st.session_state.recommended_visualizations):
-                selected = st.checkbox(viz["title"], value=True, key=f"viz_{i}")
-                if selected:
-                    selected_viz_indices.append(i)
-            
-            selected_visualizations = [st.session_state.recommended_visualizations[i] for i in selected_viz_indices]
-            
-            # Generate dashboard button
-            if st.button("Generate Dashboard", type="primary"):
-                st.session_state.dashboard_generated = True
-                st.rerun()
-    
-    # Display dashboard content in the main area
-    if st.session_state.dashboard_generated and st.session_state.data is not None:
-        generate_dashboard(
-            st.session_state.processed_data,
-            st.session_state.data_overview,
-            [st.session_state.recommended_visualizations[i] for i in range(len(st.session_state.recommended_visualizations)) if st.checkbox(f"viz_{i}", value=True, key=f"viz_dashboard_{i}")],
-            st.session_state.filters
-        )
-    else:
-        # Display instructions/welcome message
-        st.markdown("""
-        ## 👋 Welcome to AI Data Analyzer & Dashboard Generator!
-        
-        This application helps you instantly analyze your data and create beautiful dashboards with just a few clicks.
-        
-        ### How It Works:
-        1. **Upload your data file** (CSV, Excel, SQLite, etc.)
-        2. **Click "Analyze Data"** to let AI examine your dataset
-        3. **Select visualizations** you'd like to include
-        4. **Generate your dashboard** with a single click
-        
-        ### Features:
-        - Automatic data analysis and insights
-        - AI-recommended visualizations based on your data
-        - Interactive filters to explore your data
-        - Key metrics and trends detection
-        - Easy-to-understand explanations of findings
-        
-        Upload your file in the sidebar to get started!
-        """)
-
-if __name__ == "__main__":
-    main()
-                        
-                        end_date = st.date_input(
-                            f"End date",
-                            value=max_date,
-                            min_value=min_date,
-                            max_value=max_date,
-                            key=f"end_{column}"
-                        )
-                        
-                        updated_filter["start_date"] = pd.Timestamp(start_date)
-                        updated_filter["end_date"] = pd.Timestamp(end_date)
-                        updated_filter["selected"] = True
-                    except Exception as e:
-                        st.error(f"Error with date filter for {column}: {str(e)}")
-                        updated_filter["selected"] = False
-                
-                elif filter_type == "categorical":
-                    try:
-                        all_values = filter_config.get("values", [])
-                        default_all = st.checkbox("Select all", key=f"all_{column}")
-                        
-                        if default_all:
-                            selected_values = st.multiselect(
-                                f"Values",
-                                options=all_values,
-                                default=all_values,
-                                key=f"multi_{column}"
-                            )
-                        else:
-                            selected_values = st.multiselect(
-                                f"Values",
-                                options=all_values,
-                                key=f"multi_{column}"
-                            )
-                        
-                        updated_filter["selected_values"] = selected_values
-                        updated_filter["selected"] = len(selected_values) > 0
-                    except Exception as e:
-                        st.error(f"Error with categorical filter for {column}: {str(e)}")
-                        updated_filter["selected"] = False
-                
-                elif filter_type == "numeric_range":
-                    try:
-                        min_val = filter_config.get("min", float(df[column].min()))
-                        max_val = filter_config.get("max", float(df[column].max()))
-                        
-                        min_value, max_value = st.slider(
-                            f"Range",
-                            min_value=min_val,
-                            max_value=max_val,
-                            value=(min_val, max_val),
-                            key=f"range_{column}"
-                        )
-                        
-                        updated_filter["min_value"] = min_value
-                        updated_filter["max_value"] = max_value
-                        updated_filter["selected"] = min_value > min_val or max_value < max_val
-                    except Exception as e:
-                        st.error(f"Error with numeric filter for {column}: {str(e)}")
-                        updated_filter["selected"] = False
-            
-            updated_filters.append(updated_filter)
-    
-    # Apply filters to dataframe
-    filtered_df, filter_description = apply_filters(df, updated_filters)
-    
-    # Show filter summary
-    if filter_description:
-        st.info(f"Filtered data: {', '.join(filter_description)} (Showing {filtered_df.shape[0]} of {df.shape[0]} rows)")
-    
-    # Dashboard metrics (summary stats)
-    metric_container = st.container()
-    with metric_container:
-        st.subheader("Key Metrics")
-        
-        # Find numeric columns to use as metrics
-        numeric_cols = data_overview["numeric_columns"]
-        datetime_cols = data_overview["datetime_columns"]
-        categorical_cols = data_overview["categorical_columns"]
-        
-        if numeric_cols:
-            metric_cols = st.columns(min(4, len(numeric_cols)))
-            
-            for i, col in enumerate(numeric_cols[:4]):  # Show up to 4 metrics
-                with metric_cols[i]:
-                    current_value = filtered_df[col].mean()
-                    
-                    # Calculate delta if we have a time dimension
-                    delta = None
-                    if datetime_cols and filtered_df.shape[0] > 0:
-                        time_col = datetime_cols[0]
-                        try:
-                            filtered_df['temp_period'] = pd.to_datetime(filtered_df[time_col]).dt.to_period('M')
-                            
-                            # Get the mean value for the most recent and previous period
-                            period_values = filtered_df.groupby('temp_period')[col].mean()
-                            
-                            if len(period_values) >= 2:
-                                current_period = period_values.iloc[-1]
-                                previous_period = period_values.iloc[-2]
-                                delta = ((current_period - previous_period) / previous_period) * 100
-                        except:
-                            pass
-                    
-                    st.metric(
-                        label=col,
-                        value=f"{current_value:.2f}",
-                        delta=f"{delta:.1f}%" if delta is not None else None
-                    )
-            
         elif viz_type == "box_plot":
             column = viz_config["column"]
             fig = px.box(df, y=column, title=title)
@@ -1121,3 +786,321 @@ if __name__ == "__main__":
             - Largest category: {top_category} ({top_percentage:.1f}% of total)
             - Number of categories: {df[column].nunique()}
             """)
+    
+    except Exception as e:
+        container.error(f"Error rendering visualization: {str(e)}")
+        return False
+    
+    return True
+
+def apply_filters(df, filters):
+    """Apply selected filters to the dataframe"""
+    if not filters:
+        return df, []
+    
+    filtered_df = df.copy()
+    filter_description = []
+    
+    for filter_config in filters:
+        filter_type = filter_config["type"]
+        
+        if filter_type == "date_range" and filter_config.get("selected", False):
+            column = filter_config["column"]
+            start_date = filter_config.get("start_date")
+            end_date = filter_config.get("end_date")
+            
+            if start_date and end_date:
+                filtered_df = filtered_df[(filtered_df[column] >= start_date) & (filtered_df[column] <= end_date)]
+                filter_description.append(f"{column} between {start_date.strftime('%Y-%m-%d')} and {end_date.strftime('%Y-%m-%d')}")
+        
+        elif filter_type == "categorical" and filter_config.get("selected", False):
+            column = filter_config["column"]
+            selected_values = filter_config.get("selected_values", [])
+            
+            if selected_values:
+                filtered_df = filtered_df[filtered_df[column].isin(selected_values)]
+                filter_description.append(f"{column} is {', '.join(map(str, selected_values))}")
+        
+        elif filter_type == "numeric_range" and filter_config.get("selected", False):
+            column = filter_config["column"]
+            min_value = filter_config.get("min_value")
+            max_value = filter_config.get("max_value")
+            
+            if min_value is not None and max_value is not None:
+                filtered_df = filtered_df[(filtered_df[column] >= min_value) & (filtered_df[column] <= max_value)]
+                filter_description.append(f"{column} between {min_value} and {max_value}")
+    
+    return filtered_df, filter_description
+
+def generate_dashboard(df, data_overview, selected_visualizations, filters):
+    """Generate a dashboard with the selected visualizations and filters"""
+    st.title("📊 AI-Generated Dashboard")
+    
+    # Display data information
+    with st.expander("About this dataset", expanded=False):
+        st.markdown(f"**File name:** {st.session_state.file_name}")
+        st.markdown(f"**Rows:** {df.shape[0]}, **Columns:** {df.shape[1]}")
+        st.markdown(f"**Data Description:** {data_overview['data_description']}")
+        
+        st.subheader("Sample Data")
+        st.dataframe(df.head(5))
+    
+    # Apply filters
+    filter_container = st.container()
+    with filter_container:
+        st.subheader("Filters")
+        
+        filter_cols = st.columns(min(4, len(filters)))
+        updated_filters = []
+        
+        for i, filter_config in enumerate(filters):
+            filter_type = filter_config["type"]
+            column = filter_config["column"]
+            col_idx = i % len(filter_cols)
+            
+            with filter_cols[col_idx]:
+                st.markdown(f"**{filter_config['title']}**")
+                updated_filter = filter_config.copy()
+                
+                if filter_type == "date_range":
+                    try:
+                        min_date = df[column].min()
+                        max_date = df[column].max()
+                        
+                        start_date = st.date_input(
+                            f"Start date",
+                            value=min_date,
+                            min_value=min_date,
+                            max_value=max_date,
+                            key=f"start_{column}"
+                        )
+                        
+                        end_date = st.date_input(
+                            f"End date",
+                            value=max_date,
+                            min_value=min_date,
+                            max_value=max_date,
+                            key=f"end_{column}"
+                        )
+                        
+                        updated_filter["start_date"] = pd.Timestamp(start_date)
+                        updated_filter["end_date"] = pd.Timestamp(end_date)
+                        updated_filter["selected"] = True
+                    except Exception as e:
+                        st.error(f"Error with date filter for {column}: {str(e)}")
+                        updated_filter["selected"] = False
+                
+                elif filter_type == "categorical":
+                    try:
+                        all_values = filter_config.get("values", [])
+                        default_all = st.checkbox("Select all", key=f"all_{column}")
+                        
+                        if default_all:
+                            selected_values = st.multiselect(
+                                f"Values",
+                                options=all_values,
+                                default=all_values,
+                                key=f"multi_{column}"
+                            )
+                        else:
+                            selected_values = st.multiselect(
+                                f"Values",
+                                options=all_values,
+                                key=f"multi_{column}"
+                            )
+                        
+                        updated_filter["selected_values"] = selected_values
+                        updated_filter["selected"] = len(selected_values) > 0
+                    except Exception as e:
+                        st.error(f"Error with categorical filter for {column}: {str(e)}")
+                        updated_filter["selected"] = False
+                
+                elif filter_type == "numeric_range":
+                    try:
+                        min_val = filter_config.get("min", float(df[column].min()))
+                        max_val = filter_config.get("max", float(df[column].max()))
+                        
+                        min_value, max_value = st.slider(
+                            f"Range",
+                            min_value=min_val,
+                            max_value=max_val,
+                            value=(min_val, max_val),
+                            key=f"range_{column}"
+                        )
+                        
+                        updated_filter["min_value"] = min_value
+                        updated_filter["max_value"] = max_value
+                        updated_filter["selected"] = min_value > min_val or max_value < max_val
+                    except Exception as e:
+                        st.error(f"Error with numeric filter for {column}: {str(e)}")
+                        updated_filter["selected"] = False
+            
+            updated_filters.append(updated_filter)
+    
+    # Apply filters to dataframe
+    filtered_df, filter_description = apply_filters(df, updated_filters)
+    
+    # Show filter summary
+    if filter_description:
+        st.info(f"Filtered data: {', '.join(filter_description)} (Showing {filtered_df.shape[0]} of {df.shape[0]} rows)")
+    
+    # Dashboard metrics (summary stats)
+    metric_container = st.container()
+    with metric_container:
+        st.subheader("Key Metrics")
+        
+        # Find numeric columns to use as metrics
+        numeric_cols = data_overview["numeric_columns"]
+        datetime_cols = data_overview["datetime_columns"]
+        categorical_cols = data_overview["categorical_columns"]
+        
+        if numeric_cols:
+            metric_cols = st.columns(min(4, len(numeric_cols)))
+            
+            for i, col in enumerate(numeric_cols[:4]):  # Show up to 4 metrics
+                with metric_cols[i]:
+                    current_value = filtered_df[col].mean()
+                    
+                    # Calculate delta if we have a time dimension
+                    delta = None
+                    if datetime_cols and filtered_df.shape[0] > 0:
+                        time_col = datetime_cols[0]
+                        try:
+                            filtered_df['temp_period'] = pd.to_datetime(filtered_df[time_col]).dt.to_period('M')
+                            
+                            # Get the mean value for the most recent and previous period
+                            period_values = filtered_df.groupby('temp_period')[col].mean()
+                            
+                            if len(period_values) >= 2:
+                                current_period = period_values.iloc[-1]
+                                previous_period = period_values.iloc[-2]
+                                delta = ((current_period - previous_period) / previous_period) * 100
+                        except:
+                            pass
+                    
+                    st.metric(
+                        label=col,
+                        value=f"{current_value:.2f}",
+                        delta=f"{delta:.1f}%" if delta is not None else None
+                    )
+    
+    # Display visualizations in a grid
+    st.subheader("Visualizations")
+    
+    num_cols = 2  # Number of columns in the grid
+    viz_rows = [selected_visualizations[i:i+num_cols] for i in range(0, len(selected_visualizations), num_cols)]
+    
+    for row in viz_rows:
+        cols = st.columns(num_cols)
+        
+        for i, viz in enumerate(row):
+            with cols[i]:
+                st.markdown(f"**{viz['title']}**")
+                render_visualization(filtered_df, viz, cols[i])
+    
+    return True
+
+def main():
+    st.title("🧠 AI Data Analyzer & Dashboard Generator")
+    st.write("Upload your data file and let AI analyze it and create a custom dashboard for you.")
+    
+    with st.sidebar:
+        st.image("https://img.icons8.com/pulsar-color/96/data-configuration.png", width=80)
+        st.header("Data Analysis Options")
+        
+        uploaded_file = st.file_uploader("Upload your data file", type=['csv', 'xlsx', 'xls', 'json', 'txt', 'db', 'sqlite'])
+        
+        if uploaded_file is not None:
+            if st.button("Analyze Data", type="primary"):
+                with st.spinner("Reading and analyzing data..."):
+                    # Reset session state
+                    st.session_state.analysis_complete = False
+                    st.session_state.dashboard_generated = False
+                    
+                    # Read the data file
+                    df = read_data_file(uploaded_file)
+                    
+                    if df is not None and not df.empty:
+                        # Store the data
+                        st.session_state.data = df
+                        
+                        # Analyze the data
+                        st.session_state.data_overview = analyze_data(df)
+                        
+                        if st.session_state.data_overview:
+                            # Get recommended visualizations
+                            st.session_state.recommended_visualizations = st.session_state.data_overview.get("recommended_visualizations", [])
+                            
+                            # Get recommended filters
+                            st.session_state.filters = st.session_state.data_overview.get("recommended_filters", [])
+                            
+                            # Set data description
+                            st.session_state.data_description = st.session_state.data_overview.get("data_description", "")
+                            
+                            # Mark analysis as complete
+                            st.session_state.analysis_complete = True
+                            
+                            # Store a copy of the data (for filters)
+                            st.session_state.processed_data = df.copy()
+                            
+                            # Rerun the app to update the UI
+                            st.rerun()
+                    else:
+                        st.error("Failed to read or analyze the data. Please check the file format.")
+        
+        if st.session_state.analysis_complete:
+            st.success("Analysis complete!")
+            
+            # Show data description
+            st.subheader("Data Overview")
+            st.write(st.session_state.data_description)
+            
+            # Select visualizations
+            st.subheader("Select Visualizations")
+            
+            selected_viz_indices = []
+            for i, viz in enumerate(st.session_state.recommended_visualizations):
+                selected = st.checkbox(viz["title"], value=True, key=f"viz_{i}")
+                if selected:
+                    selected_viz_indices.append(i)
+            
+            selected_visualizations = [st.session_state.recommended_visualizations[i] for i in selected_viz_indices]
+            
+            # Generate dashboard button
+            if st.button("Generate Dashboard", type="primary"):
+                st.session_state.dashboard_generated = True
+                st.rerun()
+    
+    # Display dashboard content in the main area
+    if st.session_state.dashboard_generated and st.session_state.data is not None:
+        generate_dashboard(
+            st.session_state.processed_data,
+            st.session_state.data_overview,
+            [st.session_state.recommended_visualizations[i] for i in range(len(st.session_state.recommended_visualizations)) if st.checkbox(f"viz_{i}", value=True, key=f"viz_dashboard_{i}")],
+            st.session_state.filters
+        )
+    else:
+        # Display instructions/welcome message
+        st.markdown("""
+        ## 👋 Welcome to AI Data Analyzer & Dashboard Generator!
+        
+        This application helps you instantly analyze your data and create beautiful dashboards with just a few clicks.
+        
+        ### How It Works:
+        1. **Upload your data file** (CSV, Excel, SQLite, etc.)
+        2. **Click "Analyze Data"** to let AI examine your dataset
+        3. **Select visualizations** you'd like to include
+        4. **Generate your dashboard** with a single click
+        
+        ### Features:
+        - Automatic data analysis and insights
+        - AI-recommended visualizations based on your data
+        - Interactive filters to explore your data
+        - Key metrics and trends detection
+        - Easy-to-understand explanations of findings
+        
+        Upload your file in the sidebar to get started!
+        """)
+
+if __name__ == "__main__":
+    main()
