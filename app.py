@@ -632,6 +632,17 @@ def analyze_data_with_openai(df, api_key, model="gpt-3.5-turbo"):
     # Prepare data summary for API
     num_rows, num_cols = df.shape
     
+    # Custom JSON encoder for NumPy types
+    class NumpyEncoder(json.JSONEncoder):
+        def default(self, obj):
+            if isinstance(obj, np.integer):
+                return int(obj)
+            elif isinstance(obj, np.floating):
+                return float(obj)
+            elif isinstance(obj, np.ndarray):
+                return obj.tolist()
+            return super(NumpyEncoder, self).default(obj)
+    
     # Get column information
     columns_info = []
     for col in df.columns:
@@ -668,9 +679,7 @@ def analyze_data_with_openai(df, api_key, model="gpt-3.5-turbo"):
     prompt = f"""
 You are a data analysis assistant. I have a dataset with {num_rows} rows and {num_cols} columns.
 Here's information about each column:
-
-{json.dumps(columns_info, indent=2)}
-
+{json.dumps(columns_info, indent=2, cls=NumpyEncoder)}
 Based on this information:
 1. What is the likely domain or subject matter of this dataset?
 2. What are the key insights or patterns you notice?
@@ -680,7 +689,6 @@ Based on this information:
 6. What additional context or information would be helpful for someone looking at this data?
 7. What might be interesting relationships to explore between variables?
 8. Identify any data quality issues or limitations.
-
 Please respond in JSON format with the following structure:
 {{
   "domain": "likely domain of the data",
@@ -695,7 +703,6 @@ Please respond in JSON format with the following structure:
   "suggested_analyses": ["analysis1", "analysis2", ...]
 }}
 """
-
     try:
         headers = {
             "Content-Type": "application/json",
@@ -711,7 +718,8 @@ Please respond in JSON format with the following structure:
                 },
                 {
                     "role": "user",
-                    "content": prompt}
+                    "content": prompt
+                }
             ],
             "temperature": 0.2
         }
