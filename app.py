@@ -1058,7 +1058,7 @@ if __name__ == "__main__":
     main()
         # Create a dictionary of all tables
     table_data = {}
-        for table in tables:
+    for table in tables:
             table_name = table[0]
             table_df = pd.read_sql_query(f"SELECT * FROM {table_name}", conn)
             table_data[table_name] = table_df
