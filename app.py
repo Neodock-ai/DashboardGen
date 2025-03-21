@@ -1056,55 +1056,54 @@ def main():
 
 if __name__ == "__main__":
     main()
-            
-            # Create a dictionary of all tables
-            table_data = {}
-            for table in tables:
-                table_name = table[0]
-                table_df = pd.read_sql_query(f"SELECT * FROM {table_name}", conn)
-                table_data[table_name] = table_df
-            
-            # Close the connection and remove the temporary file
-            conn.close()
-            os.unlink(tmp_path)
-            
-            # If there's only one table, return it directly
-            if len(table_data) == 1:
-                df = list(table_data.values())[0]
-            else:
-                # Otherwise, let the user select a table
-                selected_table = st.selectbox("Select a table from the database:", list(table_data.keys()))
-                df = table_data[selected_table]
+        # Create a dictionary of all tables
+        table_data = {}
+        for table in tables:
+            table_name = table[0]
+            table_df = pd.read_sql_query(f"SELECT * FROM {table_name}", conn)
+            table_data[table_name] = table_df
         
-        elif file_extension == '.txt':
-            # Try to parse as CSV first
-            try:
-                df = pd.read_csv(uploaded_file, delimiter=None, engine='python')
-            except:
-                # If that fails, read as plain text and try to structure it
-                content = uploaded_file.getvalue().decode('utf-8')
-                lines = content.strip().split('\n')
-                
-                # Check if each line has the same number of fields when split by common delimiters
-                for delimiter in [',', '\t', '|', ';']:
-                    fields_per_line = [len(line.split(delimiter)) for line in lines]
-                    if len(set(fields_per_line)) == 1 and fields_per_line[0] > 1:
-                        # All lines have the same number of fields, try to parse as CSV
-                        df = pd.read_csv(StringIO(content), delimiter=delimiter)
-                        break
-                else:
-                    # If no consistent delimiter is found, just create a DataFrame with a 'text' column
-                    df = pd.DataFrame({'text': lines})
+        # Close the connection and remove the temporary file
+        conn.close()
+        os.unlink(tmp_path)
         
+        # If there's only one table, return it directly
+        if len(table_data) == 1:
+            df = list(table_data.values())[0]
         else:
-            st.error(f"Unsupported file format: {file_extension}")
-            return None
+            # Otherwise, let the user select a table
+            selected_table = st.selectbox("Select a table from the database:", list(table_data.keys()))
+            df = table_data[selected_table]
+    
+    elif file_extension == '.txt':
+        # Try to parse as CSV first
+        try:
+            df = pd.read_csv(uploaded_file, delimiter=None, engine='python')
+        except:
+            # If that fails, read as plain text and try to structure it
+            content = uploaded_file.getvalue().decode('utf-8')
+            lines = content.strip().split('\n')
             
-        return df
-        
-    except Exception as e:
-        st.error(f"Error reading the file: {str(e)}")
+            # Check if each line has the same number of fields when split by common delimiters
+            for delimiter in [',', '\t', '|', ';']:
+                fields_per_line = [len(line.split(delimiter)) for line in lines]
+                if len(set(fields_per_line)) == 1 and fields_per_line[0] > 1:
+                    # All lines have the same number of fields, try to parse as CSV
+                    df = pd.read_csv(StringIO(content), delimiter=delimiter)
+                    break
+            else:
+                # If no consistent delimiter is found, just create a DataFrame with a 'text' column
+                df = pd.DataFrame({'text': lines})
+    
+    else:
+        st.error(f"Unsupported file format: {file_extension}")
         return None
+        
+    return df
+    
+except Exception as e:
+    st.error(f"Error reading the file: {str(e)}")
+    return None
 
 def analyze_data(df):
     """Analyze the data and return insights"""
