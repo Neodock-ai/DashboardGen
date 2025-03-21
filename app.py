@@ -681,7 +681,7 @@ def generate_dashboard(df, data_overview, selected_visualizations, filters):
                         updated_filter["start_date"] = pd.Timestamp(start_date)
                         updated_filter["end_date"] = pd.Timestamp(end_date)
                         updated_filter["selected"] = True
-                    except Exception as e:
+                except Exception as e:
                         st.error(f"Error with date filter for {column}: {str(e)}")
                         updated_filter["selected"] = False
                         
