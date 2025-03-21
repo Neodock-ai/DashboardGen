@@ -493,7 +493,8 @@ def analyze_data(df):
 
 def guess_data_domain(df):
     """Guess the domain of the data based on column names and content"""
-    column_names = [col.lower() for col in df.columns]
+    # Convert column names to strings before lowercasing to handle non-string column names
+    column_names = [str(col).lower() for col in df.columns]
     
     # Sales/E-commerce data
     sales_terms = ['sales', 'revenue', 'product', 'customer', 'order', 'price', 'discount', 'quantity']
