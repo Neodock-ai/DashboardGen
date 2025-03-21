@@ -1070,10 +1070,10 @@ if __name__ == "__main__":
         # If there's only one table, return it directly
     if len(table_data) == 1:
             df = list(table_data.values())[0]
-        else:
-            # Otherwise, let the user select a table
-            selected_table = st.selectbox("Select a table from the database:", list(table_data.keys()))
-            df = table_data[selected_table]
+    else:
+        # Otherwise, let the user select a table
+        selected_table = st.selectbox("Select a table from the database:", list(table_data.keys()))
+        df = table_data[selected_table]
     
     elif file_extension == '.txt':
         # Try to parse as CSV first
