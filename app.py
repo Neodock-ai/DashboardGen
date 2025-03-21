@@ -1013,7 +1013,7 @@ def main():
                             st.session_state.processed_data = df.copy()
                             
                             # Rerun the app to update the UI
-                            st.experimental_rerun()
+                            st.rerun()
                     else:
                         st.error("Failed to read or analyze the data. Please check the file format.")
         
@@ -1035,10 +1035,10 @@ def main():
             
             selected_visualizations = [st.session_state.recommended_visualizations[i] for i in selected_viz_indices]
             
-            # Generate dashboard button
+                            # Generate dashboard button
             if st.button("Generate Dashboard", type="primary"):
                 st.session_state.dashboard_generated = True
-                st.experimental_rerun()
+                st.rerun()
     
     # Display dashboard content in the main area
     if st.session_state.dashboard_generated and st.session_state.data is not None:
