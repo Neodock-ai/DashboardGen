@@ -603,13 +603,17 @@ def render_visualization(df, viz_config, container):
             container.plotly_chart(fig, use_container_width=True)
             
             # Add insights
-            top_category = value_counts.iloc[0][column]
-            top_percentage = (value_counts.iloc[0]['count'] / df.shape[0]) * 100
-            container.markdown(f"""
-            **Insights:**
-            - Most frequent category: {top_category} ({top_percentage:.1f}% of data)
-            - Number of unique categories: {df[column].nunique()}
-            """)
+            if not value_counts.empty:
+                top_category = value_counts.iloc[0][column] if len(value_counts) > 0 else "N/A"
+                top_percentage = (value_counts.iloc[0]['count'] / df.shape[0]) * 100 if len(value_counts) > 0 else 0
+                container.markdown(f"""
+                **Insights:**
+                - Most frequent category: {top_category} ({top_percentage:.1f}% of data)
+                - Number of unique categories: {df[column].nunique()}
+                """)
+            else:
+                container.markdown("**Insights:** No data available for this category.")
+
             
         elif viz_type == "line_chart":
             x_column = viz_config["x_column"]
@@ -698,29 +702,40 @@ def render_visualization(df, viz_config, container):
             category_column = viz_config["category_column"]
             numeric_column = viz_config["numeric_column"]
             
-            # Limit to top 10 categories if there are more
-            if df[category_column].nunique() > 10:
-                top_categories = df[category_column].value_counts().nlargest(10).index.tolist()
-                filtered_df = df[df[category_column].isin(top_categories)]
+            # Check if dataframe is not empty
+            if df.shape[0] > 0 and df[category_column].nunique() > 0:
+                # Limit to top 10 categories if there are more
+                if df[category_column].nunique() > 10:
+                    top_categories = df[category_column].value_counts().nlargest(10).index.tolist()
+                    filtered_df = df[df[category_column].isin(top_categories)]
+                else:
+                    filtered_df = df
+                
+                if filtered_df.shape[0] > 0:  # Make sure we still have data after filtering
+                    fig = px.box(filtered_df, x=category_column, y=numeric_column, title=title)
+                    container.plotly_chart(fig, use_container_width=True)
+                    
+                    # Calculate and display statistics by group
+                    stats_by_group = df.groupby(category_column)[numeric_column].agg(['mean', 'median', 'std']).sort_values('mean', ascending=False)
+                    
+                    if not stats_by_group.empty:
+                        # Format the stats table
+                        stats_table = pd.DataFrame({
+                            'Category': stats_by_group.index,
+                            'Mean': stats_by_group['mean'].round(2),
+                            'Median': stats_by_group['median'].round(2),
+                            'Std Dev': stats_by_group['std'].round(2)
+                        }).reset_index(drop=True)
+                        
+                        container.markdown("**Statistics by Category:**")
+                        container.dataframe(stats_table)
+                    else:
+                        container.warning("Not enough data to calculate statistics by group.")
+                else:
+                    container.warning("Not enough data after filtering categories.")
             else:
-                filtered_df = df
-            
-            fig = px.box(filtered_df, x=category_column, y=numeric_column, title=title)
-            container.plotly_chart(fig, use_container_width=True)
-            
-            # Calculate and display statistics by group
-            stats_by_group = df.groupby(category_column)[numeric_column].agg(['mean', 'median', 'std']).sort_values('mean', ascending=False)
-            
-            # Format the stats table
-            stats_table = pd.DataFrame({
-                'Category': stats_by_group.index,
-                'Mean': stats_by_group['mean'].round(2),
-                'Median': stats_by_group['median'].round(2),
-                'Std Dev': stats_by_group['std'].round(2)
-            }).reset_index(drop=True)
-            
-            container.markdown("**Statistics by Category:**")
-            container.dataframe(stats_table)
+                container.warning("Not enough data to create grouped box plot.")
+
             
         elif viz_type == "correlation_heatmap":
             columns = viz_config["columns"]
@@ -767,29 +782,36 @@ def render_visualization(df, viz_config, container):
             # Get value counts and limit to top 10 categories + "Other"
             value_counts = df[column].value_counts()
             
-            if len(value_counts) > 10:
-                top_values = value_counts.nlargest(10)
-                other_value = pd.Series([value_counts.iloc[10:].sum()], index=["Other"])
-                pie_data = pd.concat([top_values, other_value])
+            if len(value_counts) > 0:
+                if len(value_counts) > 10:
+                    top_values = value_counts.nlargest(10)
+                    other_value = pd.Series([value_counts.iloc[10:].sum()], index=["Other"])
+                    pie_data = pd.concat([top_values, other_value])
+                else:
+                    pie_data = value_counts
+                
+                fig = px.pie(
+                    values=pie_data.values,
+                    names=pie_data.index,
+                    title=title
+                )
+                
+                container.plotly_chart(fig, use_container_width=True)
+                
+                # Add insights
+                if not pie_data.empty:
+                    top_category = pie_data.index[0] if len(pie_data) > 0 else "N/A"
+                    top_percentage = (pie_data.iloc[0] / pie_data.sum()) * 100 if len(pie_data) > 0 else 0
+                    container.markdown(f"""
+                    **Insights:**
+                    - Largest category: {top_category} ({top_percentage:.1f}% of total)
+                    - Number of categories: {df[column].nunique()}
+                    """)
+                else:
+                    container.markdown("**Insights:** No data available for this category.")
             else:
-                pie_data = value_counts
-            
-            fig = px.pie(
-                values=pie_data.values,
-                names=pie_data.index,
-                title=title
-            )
-            
-            container.plotly_chart(fig, use_container_width=True)
-            
-            # Add insights
-            top_category = pie_data.index[0]
-            top_percentage = (pie_data.iloc[0] / pie_data.sum()) * 100
-            container.markdown(f"""
-            **Insights:**
-            - Largest category: {top_category} ({top_percentage:.1f}% of total)
-            - Number of categories: {df[column].nunique()}
-            """)
+                container.warning("No data available to create pie chart.")
+
     
     except Exception as e:
         container.error(f"Error rendering visualization: {str(e)}")
