@@ -657,6 +657,8 @@ def generate_dashboard(df, data_overview, selected_visualizations, filters):
                 st.markdown(f"**{filter_config['title']}**")
                 updated_filter = filter_config.copy()
                 
+                # In the generate_dashboard function, where the date range filter handling is:
+
                 if filter_type == "date_range":
                     try:
                         min_date = df[column].min()
@@ -669,6 +671,21 @@ def generate_dashboard(df, data_overview, selected_visualizations, filters):
                             max_value=max_date,
                             key=f"start_{column}"
                         )
+                        
+                        end_date = st.date_input(
+                            f"End date",
+                            value=max_date,
+                            min_value=min_date,
+                            max_value=max_date,
+                            key=f"end_{column}"
+                        )
+                        
+                        updated_filter["start_date"] = pd.Timestamp(start_date)
+                        updated_filter["end_date"] = pd.Timestamp(end_date)
+                        updated_filter["selected"] = True
+                    except Exception as e:
+                        st.error(f"Error with date filter for {column}: {str(e)}")
+                        updated_filter["selected"] = False
     
     # Display visualizations in a grid
     st.subheader("Visualizations")
