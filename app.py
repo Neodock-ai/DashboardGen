@@ -1,4 +1,166 @@
-import streamlit as st
+def extract_advanced_insights(df, analysis):
+    """Extract more advanced insights from the data"""
+    insights = []
+    
+    # Check for data completeness
+    null_percentage = (df.isnull().sum().sum() / (df.shape[0] * df.shape[1])) * 100
+    if null_percentage > 0:
+        insights.append({
+            "type": "data_quality",
+            "content": f"Dataset contains {null_percentage:.1f}% missing values. Consider methods for handling missing data."
+        })
+    
+    # Analyze distribution of numeric columns
+    for col in analysis["numeric_columns"][:5]:  # Limit to top 5
+        try:
+            # Check for skewness
+            skew = df[col].skew()
+            if abs(skew) > 1:
+                skew_type = "positively" if skew > 0 else "negatively"
+                insights.append({
+                    "type": "distribution",
+                    "content": f"{col} is {skew_type} skewed (skewness = {skew:.2f}), suggesting a non-normal distribution."
+                })
+            
+            # Check for outliers using IQR method
+            Q1 = df[col].quantile(0.25)
+            Q3 = df[col].quantile(0.75)
+            IQR = Q3 - Q1
+            outlier_count = df[(df[col] < (Q1 - 1.5 * IQR)) | (df[col] > (Q3 + 1.5 * IQR))].shape[0]
+            outlier_percentage = (outlier_count / df.shape[0]) * 100
+            
+            if outlier_percentage > 5:
+                insights.append({
+                    "type": "outliers",
+                    "content": f"{col} contains {outlier_percentage:.1f}% potential outliers, which may affect statistical analyses."
+                })
+        except:
+            pass
+    
+    # Analyze trends in time series data
+    if analysis["datetime_columns"]:
+        for date_col in analysis["datetime_columns"][:1]:  # Start with the first datetime column
+            for num_col in analysis["numeric_columns"][:3]:  # Look at top 3 numeric columns
+                try:
+                    # Group by month/year and look for trends
+                    df['_temp_date'] = pd.to_datetime(df[date_col])
+                    df['_temp_year_month'] = df['_temp_date'].dt.to_period('M')
+                    
+                    # Calculate month-to-month changes
+                    grouped = df.groupby('_temp_year_month')[num_col].mean().reset_index()
+                    if len(grouped) > 3:  # Need at least a few data points
+                        # Calculate percentage change
+                        grouped['pct_change'] = grouped[num_col].pct_change() * 100
+                        
+                        # Check if there's a consistent trend
+                        positive_changes = (grouped['pct_change'] > 0).sum()
+                        negative_changes = (grouped['pct_change'] < 0).sum()
+                        total_changes = len(grouped) - 1  # Subtract 1 because first change is NaN
+                        
+                        if total_changes > 0:
+                            if positive_changes / total_changes > 0.7:
+                                insights.append({
+                                    "type": "trend",
+                                    "content": f"{num_col} shows a consistent upward trend over time, with {positive_changes} out of {total_changes} periods showing increases."
+                                })
+                            elif negative_changes / total_changes > 0.7:
+                                insights.append({
+                                    "type": "trend",
+                                    "content": f"{num_col} shows a consistent downward trend over time, with {negative_changes} out of {total_changes} periods showing decreases."
+                                })
+                            
+                            # Check for seasonality (if enough data)
+                            if len(grouped) >= 12:
+                                # Extract month and analyze patterns
+                                df['_temp_month'] = df['_temp_date'].dt.month
+                                monthly_avg = df.groupby('_temp_month')[num_col].mean()
+                                
+                                max_month = monthly_avg.idxmax()
+                                min_month = monthly_avg.idxmin()
+                                
+                                month_names = {
+                                    1: "January", 2: "February", 3: "March", 4: "April", 
+                                    5: "May", 6: "June", 7: "July", 8: "August", 
+                                    9: "September", 10: "October", 11: "November", 12: "December"
+                                }
+                                
+                                insights.append({
+                                    "type": "seasonality",
+                                    "content": f"{num_col} shows potential seasonality with highest values in {month_names[max_month]} and lowest in {month_names[min_month]}."
+                                })
+                except:
+                    # Remove temporary columns if needed
+                    for col in ['_temp_date', '_temp_year_month', '_temp_month']:
+                        if col in df.columns:
+                            df.drop(col, axis=1, inplace=True)
+    
+    # Analyze categorical variables for imbalance
+    for col in analysis["categorical_columns"] + analysis["binary_columns"]:
+        try:
+            value_counts = df[col].value_counts(normalize=True)
+            if len(value_counts) > 1:
+                max_category_pct = value_counts.max() * 100
+                
+                if max_category_pct > 90:
+                    insights.append({
+                        "type": "imbalance",
+                        "content": f"{col} is highly imbalanced with {value_counts.index[0]} representing {max_category_pct:.1f}% of the data."
+                    })
+        except:
+            pass
+    
+    # Domain-specific insights based on data type
+    data_domain = analysis.get("data_domain", "general business")
+    
+    if data_domain == "sales/e-commerce":
+        # Look for high-value products/customers
+        for col in analysis["categorical_columns"]:
+            if "product" in col.lower() or "item" in col.lower():
+                for metric in analysis["numeric_columns"]:
+                    if any(term in metric.lower() for term in ["revenue", "sales", "amount", "price"]):
+                        try:
+                            product_metrics = df.groupby(col)[metric].sum().sort_values(ascending=False)
+                            top_product = product_metrics.index[0]
+                            top_percentage = (product_metrics.iloc[0] / product_metrics.sum()) * 100
+                            
+                            if top_percentage > 20:
+                                insights.append({
+                                    "type": "business",
+                                    "content": f"Product '{top_product}' accounts for {top_percentage:.1f}% of total {metric}, suggesting high dependence on this product."
+                                })
+                        except:
+                            pass
+    
+    elif data_domain == "financial":
+        # Look for unusual financial patterns
+        for col in analysis["numeric_columns"]:
+            if any(term in col.lower() for term in ["profit", "revenue", "income", "expense"]):
+                try:
+                    if df[col].min() < 0 and df[col].max() > 0:
+                        negative_pct = (df[df[col] < 0].shape[0] / df.shape[0]) * 100
+                        if negative_pct > 10:
+                            insights.append({
+                                "type": "business",
+                                "content": f"{col} shows both positive and negative values, with {negative_pct:.1f}% negative entries. This may indicate periods of loss or negative returns."
+                            })
+                except:
+                    pass
+    
+    elif data_domain == "human resources":
+        # Look for retention/turnover patterns
+        for col in analysis["categorical_columns"]:
+            if "status" in col.lower() or "employee" in col.lower():
+                try:
+                    if df[col].str.contains("termin|left|exit", case=False, regex=True).any():
+                        turnover_rate = (df[col].str.contains("termin|left|exit", case=False, regex=True).mean()) * 100
+                        insights.append({
+                            "type": "business",
+                            "content": f"The data shows an employee turnover rate of approximately {turnover_rate:.1f}%."
+                        })
+                except:
+                    pass
+    
+    return insightsimport streamlit as st
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
@@ -113,6 +275,29 @@ def load_css():
             font-style: italic;
             color: #6c757d;
         }
+        .insight-card {
+            background-color: #f8f9fa;
+            border-left: 4px solid #4B89DC;
+            padding: 1rem;
+            margin-bottom: 0.5rem;
+            border-radius: 0 0.5rem 0.5rem 0;
+        }
+        .insight-card.warning {
+            border-left-color: #f39c12;
+        }
+        .insight-card.success {
+            border-left-color: #2ecc71;
+        }
+        .insight-card.danger {
+            border-left-color: #e74c3c;
+        }
+        .insight-card.info {
+            border-left-color: #3498db;
+        }
+        .insight-type {
+            font-weight: bold;
+            margin-bottom: 0.5rem;
+        }
     </style>
     """, unsafe_allow_html=True)
 
@@ -149,8 +334,40 @@ def read_data_file(uploaded_file):
                     except:
                         df = pd.read_csv(StringIO(uploaded_file.getvalue().decode('utf-8')), delimiter=None, engine='python')
         
-        elif file_extension in ['.xls', '.xlsx']:
-            df = pd.read_excel(uploaded_file)
+                elif file_extension in ['.xls', '.xlsx']:
+            # Get all sheet names
+            xls = pd.ExcelFile(uploaded_file)
+            sheet_names = xls.sheet_names
+            
+            if len(sheet_names) == 1:
+                # If there's only one sheet, read it directly
+                df = pd.read_excel(uploaded_file, sheet_name=sheet_names[0])
+            else:
+                # Let the user select which sheet to analyze or analyze all
+                sheet_option = st.radio(
+                    "Multiple sheets detected. How would you like to proceed?",
+                    ["Analyze all sheets combined", "Select a specific sheet"],
+                    key="sheet_option"
+                )
+                
+                if sheet_option == "Analyze all sheets combined":
+                    # Read all sheets and combine them
+                    all_dfs = []
+                    for sheet in sheet_names:
+                        sheet_df = pd.read_excel(uploaded_file, sheet_name=sheet)
+                        # Add a column to identify the sheet source
+                        sheet_df['_sheet_name'] = sheet
+                        all_dfs.append(sheet_df)
+                    
+                    # Combine all sheets
+                    df = pd.concat(all_dfs, ignore_index=True)
+                    st.info(f"Analyzing {len(sheet_names)} sheets combined into one dataset with {df.shape[0]} rows and {df.shape[1]} columns.")
+                else:
+                    # Let the user select a specific sheet
+                    selected_sheet = st.selectbox("Select a sheet to analyze:", sheet_names, key="sheet_select")
+                    df = pd.read_excel(uploaded_file, sheet_name=selected_sheet)
+                    st.info(f"Analyzing sheet: {selected_sheet}")
+            
         
         elif file_extension == '.json':
             df = pd.read_json(uploaded_file)
@@ -489,6 +706,9 @@ def analyze_data(df):
     analysis["recommended_filters"] = filters
     analysis["data_domain"] = data_type
     
+    # Extract advanced insights
+    analysis["advanced_insights"] = extract_advanced_insights(df, analysis)
+    
     return analysis
 
 def guess_data_domain(df):
@@ -806,10 +1026,53 @@ def generate_dashboard(df, data_overview, selected_visualizations, filters):
     st.title("📊 AI-Generated Dashboard")
     
     # Display data information
-    with st.expander("About this dataset", expanded=False):
+    with st.expander("About this dataset", expanded=True):
         st.markdown(f"**File name:** {st.session_state.file_name}")
         st.markdown(f"**Rows:** {df.shape[0]}, **Columns:** {df.shape[1]}")
         st.markdown(f"**Data Description:** {data_overview['data_description']}")
+        
+        # Display AI insights
+        if "advanced_insights" in data_overview and data_overview["advanced_insights"]:
+            st.subheader("AI Insights")
+            
+            # Group insights by type for better organization
+            insights_by_type = {}
+            for insight in data_overview["advanced_insights"]:
+                insight_type = insight["type"]
+                if insight_type not in insights_by_type:
+                    insights_by_type[insight_type] = []
+                insights_by_type[insight_type].append(insight["content"])
+            
+            # Display insights grouped by type with appropriate icons
+            for insight_type, insights in insights_by_type.items():
+                # Set card style based on insight type
+                card_style = "info"  # Default style
+                
+                if insight_type in ["data_quality", "outliers", "imbalance"]:
+                    card_style = "warning"
+                elif insight_type in ["trend", "business"]:
+                    card_style = "success"
+                elif insight_type == "distribution":
+                    card_style = "info"
+                
+                # Map insight types to readable titles and icons
+                icon_map = {
+                    "data_quality": "⚠️ Data Quality Issues",
+                    "distribution": "📊 Distribution Patterns",
+                    "outliers": "⚡ Outlier Detection",
+                    "trend": "📈 Trend Analysis",
+                    "seasonality": "🗓️ Seasonality Patterns",
+                    "imbalance": "⚖️ Category Imbalance",
+                    "business": "💼 Business Insights"
+                }
+                
+                type_title = icon_map.get(insight_type, "🔍 General Insights")
+                
+                # Display the insights as cards
+                st.markdown(f"<div class='insight-type'>{type_title}</div>", unsafe_allow_html=True)
+                
+                for insight in insights:
+                    st.markdown(f"<div class='insight-card {card_style}'>{insight}</div>", unsafe_allow_html=True)
         
         st.subheader("Sample Data")
         st.dataframe(df.head(5))
